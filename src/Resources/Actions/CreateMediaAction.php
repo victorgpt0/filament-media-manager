@@ -6,6 +6,7 @@ use TomatoPHP\FilamentMediaManager\Models\Folder;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Str;
 
 class CreateMediaAction
 {
@@ -35,26 +36,29 @@ class CreateMediaAction
             ->action(function (array $data) use ($folder_id) {
                 $folder = Folder::find($folder_id);
                 if($folder){
-                    if($folder->model){
-                        $folder->model->addMedia($data['file'])
+                    $files = is_array($data['file']) ? $data['file'] : [$data['file']];
+                    
+                    foreach ($files as $file) {
+                        $originalExtension = $file->getClientOriginalExtension();
+                        $newFilename = (string) Str::uuid() . '.' . $originalExtension;
+                        
+                        $mediaAdder = $folder->model ? $folder->model->addMedia($file) : $folder->addMedia($file);
+                        
+                        $mediaAdder
+                            ->usingName($newFilename)
+                            ->usingFileName($newFilename)
                             ->withCustomProperties([
                                 'title' => $data['title'],
-                                'description' => $data['description']
+                                'description' => $data['description'],
+                                'original_filename' => $file->getClientOriginalName()
                             ])
                             ->toMediaCollection($folder->collection);
                     }
-                    else {
-                        $folder->addMedia($data['file'])
-                            ->withCustomProperties([
-                                'title' => $data['title'],
-                                'description' => $data['description']
-                            ])
-                            ->toMediaCollection($folder->collection);
-                    }
-
                 }
 
-                Notification::make()->title(trans('filament-media-manager::messages.media.notifications.create-media'))->send();
+                Notification::make()
+                    ->title(trans('filament-media-manager::messages.media.notifications.create-media'))
+                    ->send();
             });
     }
 }
